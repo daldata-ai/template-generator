@@ -16,7 +16,6 @@ const ImageTextPositionTool = () => {
   const [dragMode, setDragMode] = useState('point');
   const [pixelCoords, setPixelCoords] = useState({ x: 0, y: 0 });
   const [originalImageSize, setOriginalImageSize] = useState({ width: 0, height: 0 });
-  const [scaledImageSize, setScaledImageSize] = useState({ width: 0, height: 0 });
   const [textBounds, setTextBounds] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,7 +90,6 @@ const ImageTextPositionTool = () => {
 
       canvas.width = canvasWidth;
       canvas.height = canvasHeight;
-      setScaledImageSize({ width: canvasWidth, height: canvasHeight });
 
       // Draw image
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -324,8 +322,6 @@ const ImageTextPositionTool = () => {
 
   // Create a preview for the confirmation popup
   const generatePreview = () => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
     const img = new Image();
 
     img.onload = () => {
@@ -670,7 +666,7 @@ const ImageTextPositionTool = () => {
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <h4 className="font-semibold">Text Settings</h4>
-                <p>Content: "{textContent}"</p>
+                <p>Content: &quot;{textContent}&quot;</p>
                 <p>Size: {textSize}px</p>
                 <p>
                   Color: {textColor}
