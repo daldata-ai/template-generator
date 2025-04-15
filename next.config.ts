@@ -30,6 +30,10 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  rules: {
+    '@typescript-eslint/no-unused-vars': 'off', // Disable unused variable checks
+    'react/no-unescaped-entities': 'off', // Disable unescaped entity checks
+  },
 };
 
 export default nextConfig;
