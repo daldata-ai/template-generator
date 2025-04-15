@@ -31,8 +31,8 @@ const ImageTextPositionTool = () => {
         img.onload = () => {
           setOriginalImageSize({ width: img.width, height: img.height });
         };
-        img.src = e.target.result;
-        setImageUrl(e.target.result);
+        img.src = e.target.result as string;
+        setImageUrl(e.target.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -418,7 +418,7 @@ const ImageTextPositionTool = () => {
 
       // Add all required fields to formData
       formData.append('image', blob, 'image.png');
-      formData.append('textSize', textSize);
+      formData.append('textSize', textSize.toString());
       formData.append('referencePoint', JSON.stringify(pixelCoords));
       formData.append('mode', textPosition);
       formData.append('textColor', textColor);
