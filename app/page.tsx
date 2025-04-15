@@ -3,21 +3,24 @@ import React, { useState, useRef, useEffect } from 'react';
 
 const ImageTextPositionTool = () => {
   const [imageUrl, setImageUrl] = useState(null);
-  const [positionX, setPositionX] = useState(50); // X-coordinate for intersection point
-  const [positionY, setPositionY] = useState(50); // Y-coordinate for intersection point
+  const [positionX, setPositionX] = useState(50);
+  const [positionY, setPositionY] = useState(50);
   const [textContent, setTextContent] = useState('Sample Text');
-  const [textSize, setTextSize] = useState(16);
-  const [textPosition, setTextPosition] = useState('center'); // center, left, right
-  const [textColor, setTextColor] = useState('#000000'); // Text color option
+  const [textSize, setTextSize] = useState(48);
+  const [textPosition, setTextPosition] = useState('center');
+  const [textColor, setTextColor] = useState('#000000');
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragMode, setDragMode] = useState('point'); // 'point', 'vertical', 'horizontal'
+  const [dragMode, setDragMode] = useState('point');
   const [pixelCoords, setPixelCoords] = useState({ x: 0, y: 0 });
   const [originalImageSize, setOriginalImageSize] = useState({ width: 0, height: 0 });
   const [scaledImageSize, setScaledImageSize] = useState({ width: 0, height: 0 });
   const [textBounds, setTextBounds] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const previewCanvasRef = useRef(null);
 
   // Handle image upload
   const handleImageUpload = (e) => {
@@ -33,6 +36,21 @@ const ImageTextPositionTool = () => {
         setImageUrl(e.target.result);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  // Handle color change from hex input
+  const handleHexInputChange = (e) => {
+    let value = e.target.value;
+    // Add # if not present
+    if (value[0] !== '#') {
+      value = '#' + value;
+    }
+
+    // Validate hex format
+    const hexRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+    if (hexRegex.test(value)) {
+      setTextColor(value);
     }
   };
 
@@ -304,6 +322,134 @@ const ImageTextPositionTool = () => {
     }
   };
 
+  // Create a preview for the confirmation popup
+  const generatePreview = () => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      // Set preview canvas dimensions
+      const previewCanvas = previewCanvasRef.current;
+      if (!previewCanvas) return;
+
+      // Calculate dimensions to maintain aspect ratio
+      const aspectRatio = img.width / img.height;
+      const canvasWidth = 300; // Fixed width for preview
+      const canvasHeight = canvasWidth / aspectRatio;
+
+      previewCanvas.width = canvasWidth;
+      previewCanvas.height = canvasHeight;
+
+      const previewCtx = previewCanvas.getContext('2d');
+
+      // Draw image
+      previewCtx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+
+      // Calculate reference point position
+      const vx = (positionX / 100) * canvasWidth;
+      const hy = (positionY / 100) * canvasHeight;
+
+      // Draw marker at reference point
+      previewCtx.beginPath();
+      previewCtx.arc(vx, hy, 4, 0, 2 * Math.PI);
+      previewCtx.fillStyle = 'green';
+      previewCtx.fill();
+
+      // Set up font for text
+      const scaledFontSize = textSize * (canvasWidth / originalImageSize.width);
+      previewCtx.font = `${scaledFontSize}px Arial`;
+
+      // Measure the text
+      const textMetrics = previewCtx.measureText(textContent);
+      const textWidth = textMetrics.width;
+      const textHeight = scaledFontSize;
+
+      let textX;
+      const textY = hy; // Position text at the horizontal line
+
+      // Calculate text position based on selected mode
+      if (textPosition === 'center') {
+        textX = vx - (textWidth / 2);
+      } else if (textPosition === 'left') {
+        textX = Math.max(0, vx - textWidth);
+      } else if (textPosition === 'right') {
+        textX = vx;
+      }
+
+      // Draw background for text
+      previewCtx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      previewCtx.fillRect(textX, textY - textHeight, textWidth, textHeight);
+
+      // Draw the text
+      previewCtx.fillStyle = textColor;
+      previewCtx.fillText(textContent, textX, textY);
+    };
+
+    img.src = imageUrl;
+  };
+
+  // Open confirmation popup
+  const openConfirmation = () => {
+    setShowConfirmation(true);
+    // Generate preview after a slight delay to ensure the canvas is in the DOM
+    setTimeout(() => {
+      generatePreview();
+    }, 100);
+  };
+
+  // Close confirmation popup
+  const closeConfirmation = () => {
+    setShowConfirmation(false);
+  };
+
+  // Handle form submission
+  const handleSubmit = async () => {
+    if (!imageUrl) {
+      alert("Please upload an image first");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Create a FormData object
+      const formData = new FormData();
+
+      // For base64 data URLs, we need to convert to blob
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+
+      // Add all required fields to formData
+      formData.append('image', blob, 'image.png');
+      formData.append('textSize', textSize);
+      formData.append('referencePoint', JSON.stringify(pixelCoords));
+      formData.append('mode', textPosition);
+      formData.append('textColor', textColor);
+
+      // Send the data
+      const webhookUrl = "https://dal-credentials-uploader.bilker1422.workers.dev";
+
+      const submitResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (submitResponse.ok) {
+        const data = await submitResponse.json();
+        alert(`Template Id is: ${data.template_id}`);
+        setShowConfirmation(false);
+      } else {
+        alert("Failed to submit template. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error submitting template:", error);
+      alert("An error occurred while submitting the template.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl p-4 bg-gray-100 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-4">Image Text Positioning Tool</h2>
@@ -341,23 +487,34 @@ const ImageTextPositionTool = () => {
               <input
                 type="number"
                 value={textSize}
-                onChange={(e) => setTextSize(Math.max(8, parseInt(e.target.value) || 16))}
+                onChange={(e) => setTextSize(Math.max(0, parseInt(e.target.value) || 16))}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                min="8"
               />
             </label>
           </div>
+
+          {/* Enhanced Color Picker Section */}
           <div>
             <label className="block mb-2">
               <span className="text-gray-700">Text Color:</span>
-              <input
-                type="color"
-                value={textColor}
-                onChange={(e) => setTextColor(e.target.value)}
-                className="mt-1 block w-full h-10 rounded-md border-gray-300 shadow-sm"
-              />
+              <div className="flex mt-1 space-x-2">
+                <input
+                  type="color"
+                  value={textColor}
+                  onChange={(e) => setTextColor(e.target.value)}
+                  className="h-10 w-16 p-0 border rounded-md"
+                />
+                <input
+                  type="text"
+                  value={textColor}
+                  onChange={handleHexInputChange}
+                  placeholder="#000000"
+                  className="flex-1 rounded-md border-gray-300 shadow-sm"
+                />
+              </div>
             </label>
           </div>
+
           <div className="md:col-span-2">
             <span className="text-gray-700 block mb-2">Text Position Mode:</span>
             <div className="flex flex-wrap gap-4">
@@ -452,7 +609,7 @@ const ImageTextPositionTool = () => {
               <span style={{ color: textColor }} className="ml-2">{textColor}</span>
               <span className="inline-block w-4 h-4 ml-2 align-middle" style={{ backgroundColor: textColor, border: '1px solid #ccc' }}></span>
             </p>
-            <p>Text: "{textContent}"</p>
+            <p>Text: &quot;{textContent}&quot;</p>
             <p>Position: <span className="text-purple-600">({textBounds.x}, {textBounds.y})</span></p>
             <p>Dimensions: {textBounds.width}px × {textBounds.height}px</p>
           </div>
@@ -470,7 +627,7 @@ const ImageTextPositionTool = () => {
               <p>
                 The text is placed to the left of the reference point,
                 with its right edge at the point (x={pixelCoords.x}, y={pixelCoords.y}).
-                The text starts at {textBounds.x}px and doesn't cross beyond the reference point.
+                The text starts at {textBounds.x}px and doesn&apos;t cross beyond the reference point.
               </p>
             )}
             {textPosition === 'right' && (
@@ -480,6 +637,69 @@ const ImageTextPositionTool = () => {
                 and extending to {textBounds.x + textBounds.width}px.
               </p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Submit button - only shown when image is uploaded */}
+      {imageUrl && (
+        <button
+          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded w-full mt-4"
+          onClick={openConfirmation}
+        >
+          Preview and Submit Template
+        </button>
+      )}
+
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-screen overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4">Confirm Template Submission</h3>
+
+            <div className="border rounded-lg p-4 mb-4">
+              <h4 className="font-semibold mb-2">Preview:</h4>
+              <div className="flex justify-center mb-4">
+                <canvas
+                  ref={previewCanvasRef}
+                  className="border rounded max-w-full"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <h4 className="font-semibold">Text Settings</h4>
+                <p>Content: "{textContent}"</p>
+                <p>Size: {textSize}px</p>
+                <p>
+                  Color: {textColor}
+                  <span className="inline-block w-4 h-4 ml-2 align-middle" style={{ backgroundColor: textColor, border: '1px solid #ccc' }}></span>
+                </p>
+              </div>
+              <div>
+                <h4 className="font-semibold">Position Settings</h4>
+                <p>Mode: {textPosition}</p>
+                <p>Reference Point: ({pixelCoords.x}, {pixelCoords.y})</p>
+                <p>Image Size: {originalImageSize.width}px × {originalImageSize.height}px</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                className="px-4 py-2 border rounded bg-gray-200 hover:bg-gray-300"
+                onClick={closeConfirmation}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Submitting..." : "Confirm & Submit"}
+              </button>
+            </div>
           </div>
         </div>
       )}
