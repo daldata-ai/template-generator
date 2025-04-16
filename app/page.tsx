@@ -422,6 +422,9 @@ const ImageTextPositionTool = () => {
       formData.append('referencePoint', JSON.stringify(pixelCoords));
       formData.append('mode', textPosition);
       formData.append('textColor', textColor);
+      formData.append('image_width', originalImageSize.width.toString());
+      formData.append('image_height', originalImageSize.height.toString());
+
 
       // Send the data
       const webhookUrl = "https://dal-credentials-uploader.bilker1422.workers.dev";
